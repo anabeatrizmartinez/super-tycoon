@@ -76,3 +76,7 @@ Single-player by design.
 ## License
 
 MIT — see [LICENSE](LICENSE).
+
+## Credits
+
+Icons by [Icons8](https://icons8.com)

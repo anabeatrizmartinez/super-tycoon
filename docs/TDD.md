@@ -13,11 +13,19 @@ logic and are never placed.
 
 ```
 Content/
-  tycoon_manager_device.verse   placed once. Start-up order and the state machine.
-  wing_config.verse             costs, income rate, pad labels. Constants only.
-  save_data.verse               persistable class, the weak_map, guarded load/save.
-  hud.verse                     widget construction and refresh. Renders state, owns none.
+  Core/                           pure logic, never placed
+    wing_config.verse             costs, income rate, pad labels, the nine tags. Constants only.
+    save_data.verse               persistable class, the weak_map, guarded load/save.
+  Devices/                        placed in the map
+    tycoon_manager_device.verse   placed once. Start-up order and the state machine.
+  UI/
+    hud.verse                     widget construction and refresh. Renders state, owns none.
 ```
+
+The folder is the module path segment, so the manager opens with
+`using { /invaliddomain/SuperTycoon/Core }` and `using { /invaliddomain/SuperTycoon/UI }` —
+which is also the dependency direction stated in one place: `Devices/` reads `Core/` and
+`UI/`, and neither of those reads back.
 
 `hud.verse` is separate because widget construction is bulky and has nothing to do with the
 rules. It renders what it is handed and never decides anything — the manager stays the only
@@ -46,6 +54,13 @@ extra field removes the case.
 
 `Guards` counts **guards cleared** — progression — not whether a guard is currently alive,
 which is runtime state and gets rebuilt on load.
+
+### Live values and the snapshot
+
+The manager holds `Gen`, `Wings`, `Guards` and `Gold` as four mutable fields, and those are
+what every rule below reads and writes. `run_data` (§5) is the **format they are written out
+in**, not where they live: it is constructed whole at each save and never mutated in place.
+`Version` belongs to the snapshot alone.
 
 ### Derived gating
 
@@ -85,7 +100,7 @@ alike — is a tagged prop rather than a device.
 
 ### Gold is a number, not an inventory
 
-`State.Gold` is an `int` living in the manager and nowhere else. No device holds a balance
+`Gold` is an `int` living in the manager and nowhere else. No device holds a balance
 and no device checks one: a purchase is a comparison and a subtraction, and the HUD counter
 in §4 renders the same variable the pads test, so the two cannot disagree.
 
@@ -98,7 +113,7 @@ Dying to a guard is a normal event in this loop, not an edge case.
 A pad is a bare `trigger_device`. It needs nothing else, because the cost is a number:
 
 1. `trigger_device` on the floor signals `TriggeredEvent(agent)`.
-2. Verse compares `State.Gold` against the cost in `wing_config.verse`.
+2. Verse compares `Gold` against the cost in `wing_config.verse`.
 3. If it covers, subtract, apply the purchase, save, and call `RefreshWorld()`.
 
 A pad stepped on without the Gold does nothing at all — no partial state and no failure
@@ -160,9 +175,10 @@ prop, not the device, is what carries "visible means usable".
 
 ### Income
 
-The generator is a Verse loop, not a device timer: `Sleep(1.0)` then `set State.Gold += 20`,
-for as long as `Gen` is true. One place decides the rate, and it is the same variable a
-saved balance is restored into.
+The generator is a Verse loop, not a device timer: `Sleep(IncomeTickSeconds)` then
+`set Gold += IncomePerTick`, for as long as `Gen` is true. One place decides the rate — both
+constants come from `wing_config.verse` — and it is the same variable a saved balance is
+restored into.
 
 ## 4. Interface
 
@@ -191,7 +207,7 @@ Built in code with `player_ui` and the widget classes from
 changes every second, and the achievements panel needs a button that opens something.
 
 - **Gold counter** — a `text_block` in a corner, refreshed by the same loop that adds the
-  income. **The counter is not a second source of truth**: it renders `State.Gold`, the same
+  income. **The counter is not a second source of truth**: it renders `Gold`, the same
   variable the purchase pads test, so there is no other balance for it to drift from.
 - **Achievements button** — a button widget, always present, toggling the panel.
 - **Achievements panel** — hidden by default; one row, the achievement's name and
@@ -218,15 +234,18 @@ Gold counter has lost the only readout of the currency the whole loop is about.
 ## 5. Persistence
 
 ```verse
-run_data := class<final><persistable>:
-    Version:int = 1
-    Gen:logic = false
-    Wings:int = 0
-    Guards:int = 0
-    Gold:int = 0
+run_data<public> := class<final><persistable>:
+    Version<public>:int = 1
+    Gen<public>:logic = false
+    Wings<public>:int = 0
+    Guards<public>:int = 0
+    Gold<public>:int = 0
 
 var RunDataMap : weak_map(player, run_data) = map{}
 ```
+
+`RunDataMap` is internal to `Core/`: the record is reachable only through the load and save
+functions beside it, and from nowhere else in the project.
 
 Five integers-worth of state, no strings and no cumulative arrays — UEFN's persistence
 budget rewards compact keys and punishes growth. `Version` is there because a persistable
@@ -244,7 +263,7 @@ not come back" are indistinguishable at the call site, and the rule has to be bu
 Start-up never writes. That is the whole guard: a session that opens on a failed read and
 is closed without buying anything leaves the stored save exactly as it was.
 
-Gold is restored by assignment — `set State.Gold = Loaded.Gold`. There is no inventory to
+Gold is restored by assignment — `set Gold = Loaded.Gold`. There is no inventory to
 reconstruct, so a restored balance is exact at any size.
 
 Saving happens on each purchase and each guard kill, not on a timer: those are the only
@@ -262,13 +281,13 @@ opposite order is visibly wrong in-session.
 3. Disable both guard spawners, all five pad triggers, and all five billboards, and blank
    every billboard's text.
 4. Load `run_data` for the player.
-5. Set `State.Gold` from the save, or to 100 on a first run.
+5. Set `Gold` from the save, or to `StartingGold` on a first run.
 6. Build the HUD and subscribe re-attachment to the player's spawn event, panel hidden.
 7. `RefreshWorld()` — shows owned wings, enables the reachable pad with its label and prop,
    spawns a guard if the save sits on a gate, and fills in the counter and the panel.
 8. Start the income loop if `Gen` is true.
 
-Nothing may touch `State.Gold` before step 4 completes. Step 1 precedes step 2 because
+Nothing may touch `Gold` before step 4 completes. Step 1 precedes step 2 because
 hiding iterates the caches. The HUD is built before the first `RefreshWorld()` because that
 call is what populates it — reversing them shows the player an empty counter until the first
 purchase.
