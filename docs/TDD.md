@@ -72,49 +72,97 @@ after a reload cannot drift from the state after playing to the same point.
 
 | Device | Count | Role |
 |---|---|---|
-| `conditional_button_device` | 5 | The wallet. Holds the Gold cost and consumes it. |
-| `trigger_device` | 5 | The step-on pad the player actually touches. |
-| `prop_manipulator_device` | 4 | One per wing group. `HideProps()` at start, `ShowProps()` on purchase. |
+| `trigger_device` | 5 | The step-on pad. `TriggeredEvent` is the only entry point to a purchase. |
+| `billboard_device` | 5 | One per pad. World-space label naming what the pad buys. |
 | `guard_spawner_device` | 2 | One per building. `Spawn()` on completion, `EliminatedEvent` to advance. |
 | `accolades_device` | 2 | One Medium, awarded 6 times; one for the final achievement. |
-| `item_granter_device` | 4 | Starting weapon; Gold denominations 100 / 10 / 1. |
-| `billboard_device` | 5 | One per pad. World-space label naming what the pad buys. |
 | `hud_message_device` | 1 | Guard defeated, achievement unlocked. |
+| `class_designer_device` | 1 | Holds the starting weapon in its Item List. Never called from Verse. |
 | `player_spawner_device` | 1 | Already in the map. |
 
-### Purchases are a pad plus a wallet
+Seventeen devices. Everything the player watches appear or disappear — wings and pads
+alike — is a tagged prop rather than a device.
 
-The pads are step-on, and the device that can hold and consume a Gold cost —
-`conditional_button_device` — is interact-driven. They are paired instead of chosen between:
+### Gold is a number, not an inventory
+
+`State.Gold` is an `int` living in the manager and nowhere else. No device holds a balance
+and no device checks one: a purchase is a comparison and a subtraction, and the HUD counter
+in §4 renders the same variable the pads test, so the two cannot disagree.
+
+Being a number rather than an inventory is also what makes §7's *death costs nothing* true
+for free. Elimination strips a player's items; it cannot touch a variable in the manager.
+Dying to a guard is a normal event in this loop, not an edge case.
+
+### Purchases
+
+A pad is a bare `trigger_device`. It needs nothing else, because the cost is a number:
 
 1. `trigger_device` on the floor signals `TriggeredEvent(agent)`.
-2. Verse asks the paired conditional button `HasAllItems(agent)`.
-3. If true, Verse calls `Activate(agent)`; the button consumes the Gold and signals
-   `ActivatedEvent`.
-4. `ActivatedEvent` applies the purchase and calls `RefreshWorld()`.
+2. Verse compares `State.Gold` against the cost in `wing_config.verse`.
+3. If it covers, subtract, apply the purchase, save, and call `RefreshWorld()`.
 
-The conditional buttons are placed out of the playable area. Cost lives in the device's required-item count, mirrored in `wing_config.verse`
-so the numbers are readable in one place.
+A pad stepped on without the Gold does nothing at all — no partial state and no failure
+branch beyond the comparison. Cost lives in `wing_config.verse` alone; no device carries a
+number that could disagree with it.
 
-> **Verify first (§8).** If `Activate()` turns out not to consume the required items, the
-> pads become plain interact Conditional Buttons and the triggers are deleted. Same state
-> machine, `ActivatedEvent` still the entry point — the loss is step-on, not the design.
+### The starting weapon
+
+The weapon sits in the `class_designer_device`'s Item List, and that class is the island's
+default. The player spawns holding it and **respawns holding it** — the loadout is reapplied
+by the class on every spawn, so the first death to a guard does not leave the player unarmed.
+Class settings override island and team settings, so the loadout is decided in exactly one
+place.
+
+### Visibility is a tag
+
+Everything that appears or disappears is a Creative prop carrying a Verse tag, and the
+manager shows or hides it directly:
+
+```verse
+wing_props_1 := class(tag){}
+
+for (Obj : FindCreativeObjectsWithTag(wing_props_1{}), Prop := creative_prop[Obj]):
+    Prop.Hide()
+```
+
+| Tag | Covers | Shown when |
+|---|---|---|
+| `wing_props_1` | Mansion wing 1 | `Wings >= 1` |
+| `wing_props_2` | Mansion wing 2 | `Wings >= 2` |
+| `wing_props_3` | Observatory wing 3 | `Wings >= 3` |
+| `wing_props_4` | Observatory wing 4 | `Wings >= 4` |
+| `pad_generator` | Generator pad mesh | its pad is enabled |
+| `pad_wing_1` | Wing 1 pad mesh | its pad is enabled |
+| `pad_wing_2` | Wing 2 pad mesh | its pad is enabled |
+| `pad_wing_3` | Wing 3 pad mesh | its pad is enabled |
+| `pad_wing_4` | Wing 4 pad mesh | its pad is enabled |
+
+Each tag is resolved **once at start-up** into a cached `[]creative_prop`; `RefreshWorld()`
+iterates the cache rather than searching the world again on every purchase.
+
+`creative_prop.Hide()` drops collision along with visibility, so a hidden wing is not an
+invisible wall and a locked pad is not an invisible obstacle. A tag has no spatial extent
+either, so wings that stack vertically need no separation from each other — membership is
+declared per prop, in the Outliner, by selecting a group and tagging it once.
+
+Wings and pads use the same mechanism, so there is one way to make something visible in this
+project. All four wing groups exist in the map from the start, hidden before the player can
+see anything and shown on purchase: nothing is instantiated at runtime, and the buildings
+stay indestructible throughout.
+
+### What the player sees at a pad
+
+A pad is three things moving together: the `trigger_device` volume the player walks into,
+the `billboard_device` naming what it buys, and its tagged pad prop. Locking is three
+calls — disable the trigger, disable the billboard, hide the prop — and unlocking is their
+opposites. `Disable()` stops a device responding without making it disappear (§8), so the
+prop, not the device, is what carries "visible means usable".
 
 ### Income
 
-The generator is a Verse loop, not a device timer: `Sleep(1.0)` then grant 20 Gold via the
-100/10/1 granters, for as long as `Gen` is true. Keeping the clock in Verse means one place
-decides the rate, and it is the same code path that restores a saved balance.
-
-### Props
-
-All four wing groups exist in the map from the start. Each `prop_manipulator_device` volume
-covers exactly one group; `HideProps()` runs on start-up before the player can see anything,
-`ShowProps()` on purchase. Nothing is instantiated at runtime, and the buildings stay
-indestructible throughout.
-
-The volumes must not overlap — a prop inside two volumes answers to both devices. Wings that
-stack vertically are separated by volume height.
+The generator is a Verse loop, not a device timer: `Sleep(1.0)` then `set State.Gold += 20`,
+for as long as `Gen` is true. One place decides the rate, and it is the same variable a
+saved balance is restored into.
 
 ## 4. Interface
 
@@ -124,9 +172,14 @@ in the world and follow a pad's state, the HUD is on screen and follows the play
 ### Pad labels — devices
 
 One `billboard_device` per pad, calling `SetText()` with the name and cost from
-`wing_config.verse`. Text is set once at start-up rather than rebuilt, and the billboard is
-enabled and disabled alongside its pad inside `RefreshWorld()` — a locked pad has no label,
-which is what makes "visible means usable" true of the labels as well as the pads.
+`wing_config.verse`. Both the text and the enabled state are set inside `RefreshWorld()`:
+an available pad's billboard is enabled and carries its label, a locked pad's is disabled
+and carries the empty string.
+
+Blanking the text is not redundant with disabling. `Disable()` stops a device responding
+without hiding it (§8), and a billboard's whole output is text — so the empty string is what
+actually removes the label from the world, and disabling is what stops it costing anything.
+Together they make "visible means usable" true of the labels as well as the pads.
 
 The label is the only reason `wing_config.verse` holds display names next to the costs: one
 table produces both what a pad charges and what its sign says, so the two cannot disagree.
@@ -137,9 +190,9 @@ Built in code with `player_ui` and the widget classes from
 `/UnrealEngine.com/Temporary/UI`, not with a device — a device cannot show a number that
 changes every second, and the achievements panel needs a button that opens something.
 
-- **Gold counter** — a `text_block` in a corner, refreshed by the same loop that grants the
-  income. **The counter is not a second source of truth**: it renders `State.Gold` after the
-  grant, so it cannot drift from the wallet the purchase pads check.
+- **Gold counter** — a `text_block` in a corner, refreshed by the same loop that adds the
+  income. **The counter is not a second source of truth**: it renders `State.Gold`, the same
+  variable the purchase pads test, so there is no other balance for it to drift from.
 - **Achievements button** — a button widget, always present, toggling the panel.
 - **Achievements panel** — hidden by default; one row, the achievement's name and
   condition, rendered as earned or locked from `Wings = 4 and Guards = 2`. Derived from the
@@ -150,6 +203,17 @@ The panel is built once and shown or hidden, not created and destroyed per open.
 row; rebuilding it per click adds a lifecycle to get wrong for no benefit.
 
 `RefreshWorld()` ends by refreshing the HUD, so the panel and the world can never disagree.
+
+### The HUD is re-attached on every spawn
+
+The widget hierarchy is built once and kept, but attaching it is subscribed to the player's
+spawn event, not done only at start-up: each spawn removes the canvas from `player_ui` and
+adds it again. Removing first makes the call idempotent, so a spawn that did not drop the
+widget does not end up with two counters stacked on each other.
+
+This costs one subscription and removes the question of whether `player_ui` survives an
+elimination. Dying to a guard happens in a normal run, and a player who respawns with no
+Gold counter has lost the only readout of the currency the whole loop is about.
 
 ## 5. Persistence
 
@@ -180,8 +244,8 @@ not come back" are indistinguishable at the call site, and the rule has to be bu
 Start-up never writes. That is the whole guard: a session that opens on a failed read and
 is closed without buying anything leaves the stored save exactly as it was.
 
-Gold is restored by granting the saved amount through the 100/10/1 granters — greedy, at
-most 25 calls for the largest balance the run can produce.
+Gold is restored by assignment — `set State.Gold = Loaded.Gold`. There is no inventory to
+reconstruct, so a restored balance is exact at any size.
 
 Saving happens on each purchase and each guard kill, not on a timer: those are the only
 moments the state changes, and both are already the end of a code path that calls
@@ -192,21 +256,26 @@ moments the state changes, and both are already the end of a code path that call
 Ordering matters more than anything else in this file: every rule below exists because the
 opposite order is visibly wrong in-session.
 
-1. Hide all four prop groups. **Before the player can see the map** — otherwise a returning
-   player watches wings they already own blink out and back.
-2. Disable both guard spawners, all five pads, and all five billboards.
-3. Set every billboard's text from `wing_config.verse`. Static, done once.
+1. Resolve all nine tags into cached `[]creative_prop` arrays.
+2. Hide all four wing groups and all five pad props. **Before the player can see the map** —
+   otherwise a returning player watches wings they already own blink out and back.
+3. Disable both guard spawners, all five pad triggers, and all five billboards, and blank
+   every billboard's text.
 4. Load `run_data` for the player.
-5. Grant the starting weapon.
-6. Restore Gold, or grant 100 on a first run.
-7. Build the HUD and add it to the player's UI, panel hidden.
-8. `RefreshWorld()` — shows owned wings, enables the reachable pad and its label, spawns a
-   guard if the save sits on a gate, and fills in the counter and the panel.
-9. Start the income loop if `Gen` is true.
+5. Set `State.Gold` from the save, or to 100 on a first run.
+6. Build the HUD and subscribe re-attachment to the player's spawn event, panel hidden.
+7. `RefreshWorld()` — shows owned wings, enables the reachable pad with its label and prop,
+   spawns a guard if the save sits on a gate, and fills in the counter and the panel.
+8. Start the income loop if `Gen` is true.
 
-Nothing may grant Gold before step 4 completes. The HUD is built before the first
-`RefreshWorld()` because that call is what populates it — reversing them shows the player
-an empty counter until the first purchase.
+Nothing may touch `State.Gold` before step 4 completes. Step 1 precedes step 2 because
+hiding iterates the caches. The HUD is built before the first `RefreshWorld()` because that
+call is what populates it — reversing them shows the player an empty counter until the first
+purchase.
+
+Two things are deliberately absent. The starting weapon comes from the class (§3), not from
+a start-up call, which is why it survives a respawn. Billboard labels are written by
+`RefreshWorld()` rather than here (§4), so start-up only has to blank them.
 
 ## 7. Verification
 
@@ -214,35 +283,53 @@ Each of these has a failure that only appears under that specific condition:
 
 - **A gate cannot be skipped.** With `Wings = 2` and guard 1 alive, the Wing 3 pad does
   nothing.
-- **Death costs nothing.** Die to a guard: Gold, wings, and the guard's remaining health
-  survive the respawn.
+- **Death costs nothing.** Die to a guard: Gold, wings, the starting weapon, and the guard's
+  remaining health survive the respawn.
 - **The save survives a restart.** Buy two wings, leave the session, relaunch: two wings
   standing, the correct Gold, and the Wing 3 pad in the right state.
 - **Reload on a gate.** Leave at `Wings = 2` with guard 1 alive; on return the guard is
   spawned again and Wing 3 stays locked.
 - **The generator survives alone.** Buy only the generator and leave. On return it is owned
   and income resumes.
-- **The counter tracks the wallet.** Watch it tick while the generator runs, then buy
+- **The counter tracks the balance.** Watch it tick while the generator runs, then buy
   something: it drops by exactly the cost. A counter that only agrees at start-up is a
   second source of truth that has not diverged *yet*.
 - **The panel reads locked until it does not.** Open it mid-run: locked. Open it after the
   second guard: earned. Reload a finished save and open it: still earned.
-- **A locked pad has no label.** Wing 3's billboard is absent while guard 1 is alive.
+- **A locked pad is not there.** While guard 1 is alive, Wing 3's billboard, its pad mesh,
+  and its trigger are all absent — and walking through where the pad was does nothing.
+- **A hidden wing is not a wall.** Walk through the space an unbought wing will occupy: no
+  collision until it is bought.
+- **The HUD comes back.** Die to a guard and respawn: exactly one Gold counter, showing the
+  balance the run was at.
 
-## 8. To confirm in the editor
+### Calibration
 
-Open items whose answers change code that is not yet written. None blocks starting.
+Two numbers are set by measurement rather than by design, and both are read off a built
+map rather than decided here:
 
-1. **Does `conditional_button_device.Activate(agent)` consume the required items?** The
-   step-on pad depends on it. Fallback in §3.
-2. **Does a disabled pad also stop being visible,** or does hiding it need the device's own
-   visibility option?
-3. **Gold grant granularity.** Whether `item_granter_device` can grant Gold in a configured
-   quantity, or whether the 100/10/1 denominations are actually required.
-4. **Guard time-to-kill** against the starting assault rifle, tuned to the ~15 seconds the
-   calibration in [GDD.md](GDD.md) assumes.
-5. **Does the HUD survive a respawn?** If widgets added to `player_ui` are dropped when the
-   player is eliminated, the counter has to be re-added on respawn rather than only at
-   start-up — and dying to a guard is a normal event here, not an edge case.
-6. **Billboard legibility** — text size and facing, so a label is readable from where the
-   player approaches its pad rather than only from on top of it.
+- **Guard health**, set on `guard_spawner_device` so a guard falls in roughly 15 seconds to
+  the starting assault rifle. [GDD.md](GDD.md) calibrates the two-minute loop around that
+  figure, and income runs during the fight, so a guard that dies too fast shortens the run
+  and one that takes too long makes the gate feel like a wall.
+- **Billboard text size and facing**, so a label reads from where the player approaches its
+  pad rather than only from on top of it.
+
+## 8. Device behaviour this design rests on
+
+Confirmed in the editor. Each one is load-bearing somewhere above.
+
+- **`Disable()` does not hide a device.** A disabled device stops responding and stays
+  visible; visibility is a separate editor property, not something Verse toggles. This is
+  why a pad's visual is a tagged prop (§3) and why a locked billboard is blanked as well as
+  disabled (§4).
+- **`creative_prop` exposes `Hide()` and `Show()`,** and `Hide()` drops collision along with
+  visibility — so hiding is total, and an unbought wing is not an invisible wall.
+- **`class_designer_device` reapplies its Item List on every spawn** and overrides island
+  and team inventory settings, which is what makes the starting weapon survive a death.
+- **`conditional_button_device.Activate(agent)` consumes the required items.** An
+  item-backed currency was therefore available; §3 keeps Gold as a number on other grounds.
+- **`item_granter_device` grants a freely configured quantity,** but only with *On Grant
+  Action* set to **Keep All** and *Grant Condition* to **Always** — otherwise a grant
+  replaces the inventory instead of adding to it. No granter is placed in this build; the
+  trap is recorded because any future one inherits it.
