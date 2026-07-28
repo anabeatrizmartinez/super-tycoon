@@ -1,0 +1,25 @@
+# UEFN editor output
+Intermediate/
+Saved/
+DerivedDataCache/
+
+# Generated among authored content
+*_BuiltData.uasset
+*.digest.verse
+*.vproject
+
+# Per-developer content sandbox
+Content/Developers/
+
+# Editor / machine-local
+.vscode/
+*.code-workspace
+
+# Secrets
+.env
+.env.*
+
+# OS
+Thumbs.db
+Desktop.ini
+.DS_Store
