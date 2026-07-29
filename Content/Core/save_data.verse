@@ -12,7 +12,9 @@ run_data<public> := class<final><persistable>:
 var RunDataMap : weak_map(player, run_data) = map{}
 
 LoadRunData<public>(Player : player)<decides><transacts> : run_data =
-    RunDataMap[Player]
+    Loaded := RunDataMap[Player]
+    Loaded.Version <= CurrentSaveVersion
+    Loaded
 
 SaveRunData<public>(Player : player, Gen : logic, Wings : int, Guards : int, Gold : int) : void =
     Snapshot : run_data = run_data:
