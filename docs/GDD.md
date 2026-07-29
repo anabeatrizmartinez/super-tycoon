@@ -158,18 +158,23 @@ to be read.
 *(Labels should match what each prop group actually contains; adjust once the groups are
 confirmed in the editor.)*
 
-### Achievements panel
+### Achievements readout
 
-A button on the HUD opens a panel listing the achievements. There is one, and it is shown
-in both states so the player can see it before earning it:
+The HUD shows the achievement permanently, in both states, so the player can see it before
+earning it:
 
 | State | Shown as |
 |---|---|
 | Not earned | Name, its condition, marked locked |
 | Earned | Name, marked earned |
 
-Listing a single locked achievement is the point — it tells the player what finishing the
+Showing a single locked achievement is the point — it tells the player what finishing the
 map means, which nothing else in the map states.
+
+**It is a fixed row, not a button that opens a panel.** In Fortnite a UI control the player
+can click has to hold the same input that moves and aims the character, so a button sitting
+on screen for the whole match is movement taken away for the whole match. The row is small,
+costs one corner, and states the goal without ever being opened.
 
 ## 8. Persistence
 

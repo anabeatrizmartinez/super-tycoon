@@ -204,21 +204,26 @@ table produces both what a pad charges and what its sign says, so the two cannot
 
 Built in code with `player_ui` and the widget classes from
 `/UnrealEngine.com/Temporary/UI`, not with a device — a device cannot show a number that
-changes every second, and the achievements panel needs a button that opens something.
+changes every second.
 
 - **Gold counter** — a `text_block` in a corner, refreshed by the same loop that adds the
   income. **The counter is not a second source of truth**: it renders `Gold`, the same
   variable the purchase pads test, so there is no other balance for it to drift from.
-- **Achievements button** — a button widget, always present, toggling the panel.
-- **Achievements panel** — hidden by default; one row, the achievement's name and
+- **Achievement row** — always visible under the counter; the achievement's name and
   condition, rendered as earned or locked from `Wings = 4 and Guards = 2`. Derived from the
   same state as everything else, so it needs no save field of its own and cannot show
   earned for a run that is not finished.
 
-The panel is built once and shown or hidden, not created and destroyed per open. It is one
-row; rebuilding it per click adds a lifecycle to get wrong for no benefit.
+**Nothing on the HUD is clickable, and that is a platform constraint, not a preference.**
+A `player_ui_slot` declares its input handling as either `ui_input_mode.None` or
+`ui_input_mode.All`, with nothing between them: `All` takes movement, camera and fire away
+from the player for as long as the widget is attached. A permanently clickable control is
+therefore a permanently unplayable match. The whole HUD is one canvas attached with `None`.
 
-`RefreshWorld()` ends by refreshing the HUD, so the panel and the world can never disagree.
+Anything clickable added later needs an opener that is not a click — an input trigger key or
+a world interaction — and its canvas must be attached on open and removed on close.
+
+`RefreshWorld()` ends by refreshing the HUD, so the readout and the world can never disagree.
 
 ### The HUD is re-attached on every spawn
 
@@ -282,9 +287,9 @@ opposite order is visibly wrong in-session.
    every billboard's text.
 4. Load `run_data` for the player.
 5. Set `Gold` from the save, or to `StartingGold` on a first run.
-6. Build the HUD and subscribe re-attachment to the player's spawn event, panel hidden.
+6. Build the HUD and subscribe re-attachment to the player's spawn event.
 7. `RefreshWorld()` — shows owned wings, enables the reachable pad with its label and prop,
-   spawns a guard if the save sits on a gate, and fills in the counter and the panel.
+   spawns a guard if the save sits on a gate, and fills in the counter and the achievement row.
 8. Start the income loop if `Gen` is true.
 
 Nothing may touch `Gold` before step 4 completes. Step 1 precedes step 2 because
@@ -313,8 +318,10 @@ Each of these has a failure that only appears under that specific condition:
 - **The counter tracks the balance.** Watch it tick while the generator runs, then buy
   something: it drops by exactly the cost. A counter that only agrees at start-up is a
   second source of truth that has not diverged *yet*.
-- **The panel reads locked until it does not.** Open it mid-run: locked. Open it after the
-  second guard: earned. Reload a finished save and open it: still earned.
+- **The achievement row reads locked until it does not.** Locked mid-run; earned after the
+  second guard; still earned after reloading a finished save.
+- **The HUD never takes the controls.** From the first second the player can walk, turn the
+  camera and fire, and no cursor is drawn over the game.
 - **A locked pad is not there.** While guard 1 is alive, Wing 3's billboard, its pad mesh,
   and its trigger are all absent — and walking through where the pad was does nothing.
 - **A hidden wing is not a wall.** Walk through the space an unbought wing will occupy: no

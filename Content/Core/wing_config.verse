@@ -24,6 +24,7 @@ wing_props_2<public> := class(tag){}
 wing_props_3<public> := class(tag){}
 wing_props_4<public> := class(tag){}
 pad_generator<public> := class(tag){}
+generator_prop<public> := class(tag){}
 pad_wing_1<public> := class(tag){}
 pad_wing_2<public> := class(tag){}
 pad_wing_3<public> := class(tag){}

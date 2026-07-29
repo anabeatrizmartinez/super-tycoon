@@ -33,6 +33,7 @@ tycoon_manager_device := class(creative_device):
 
     var WingProps : [][]creative_prop = array{}
     var GeneratorPadProps : []creative_prop = array{}
+    var GeneratorProps : []creative_prop = array{}
     var WingPadProps : [][]creative_prop = array{}
 
     OnBegin<override>()<suspends> : void =
@@ -47,28 +48,31 @@ tycoon_manager_device := class(creative_device):
             if (SpawnedPlayer := player[Agent]):
                 StartRun(SpawnedPlayer)
 
-    PropsWithTag(Tag : tag) : []creative_prop =
-        for (Obj : Self.FindCreativeObjectsWithTag(Tag), Prop := creative_prop[Obj]):
+    PropsWithTag(TagType : castable_subtype(tag)) : []creative_prop =
+        for (Obj : Self.FindCreativeObjectsWithTag(TagType), Prop := creative_prop[Obj]):
             Prop
 
     CacheTags() : void =
-        set GeneratorPadProps = PropsWithTag(pad_generator{})
+        set GeneratorPadProps = PropsWithTag(pad_generator)
+        set GeneratorProps = PropsWithTag(generator_prop)
         set WingPadProps = array:
-            PropsWithTag(pad_wing_1{})
-            PropsWithTag(pad_wing_2{})
-            PropsWithTag(pad_wing_3{})
-            PropsWithTag(pad_wing_4{})
+            PropsWithTag(pad_wing_1)
+            PropsWithTag(pad_wing_2)
+            PropsWithTag(pad_wing_3)
+            PropsWithTag(pad_wing_4)
         set WingProps = array:
-            PropsWithTag(wing_props_1{})
-            PropsWithTag(wing_props_2{})
-            PropsWithTag(wing_props_3{})
-            PropsWithTag(wing_props_4{})
+            PropsWithTag(wing_props_1)
+            PropsWithTag(wing_props_2)
+            PropsWithTag(wing_props_3)
+            PropsWithTag(wing_props_4)
 
     HideAll() : void =
         for (WingPropSet : WingProps):
             for (WingProp : WingPropSet):
                 WingProp.Hide()
         for (Prop : GeneratorPadProps):
+            Prop.Hide()
+        for (Prop : GeneratorProps):
             Prop.Hide()
         for (PadPropSet : WingPadProps):
             for (PadProp : PadPropSet):
@@ -148,6 +152,13 @@ tycoon_manager_device := class(creative_device):
             GeneratorBillboard.HideText()
             GeneratorTrigger.Disable()
 
+        if (Gen?):
+            for (Prop : GeneratorProps):
+                Prop.Show()
+        else:
+            for (Prop : GeneratorProps):
+                Prop.Hide()
+
         for (Index -> PadProps : WingPadProps):
             if (Billboard := WingBillboards[Index], Trigger := WingTriggers[Index]):
                 if (WingPadOpen[Index]):
@@ -219,6 +230,8 @@ tycoon_manager_device := class(creative_device):
 
             RefreshWorld()
             RefreshHud()
+
+            AccoladeMedium.Award(ActivePlayer)
 
             if (Wings = 4, Guards = 2):
                 HudMessage.SetText(AchievementMessage)
