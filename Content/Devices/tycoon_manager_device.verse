@@ -19,6 +19,8 @@ tycoon_manager_device := class(creative_device):
     @editable AccoladeAchievement : accolades_device = accolades_device{}
     @editable HudMessage : hud_message_device = hud_message_device{}
     @editable PlayerSpawner : player_spawner_device = player_spawner_device{}
+    @editable WingManipulators : []prop_manipulator_device = array{}
+    @editable GeneratorManipulator : prop_manipulator_device = prop_manipulator_device{}
 
     Config : pad_config = pad_config{}
 
@@ -29,11 +31,11 @@ tycoon_manager_device := class(creative_device):
 
     var Player : ?player = false
     var Hud : ?hud = false
-    var SpawnedGuards : int = 0
+    # Highest guard index spawned THIS session, never saved. A reload opens it at 0, which
+    # is what re-spawns a guard the player left standing.
+    var HighestGuardSpawned : int = 0
 
-    var WingProps : [][]creative_prop = array{}
     var GeneratorPadProps : []creative_prop = array{}
-    var GeneratorProps : []creative_prop = array{}
     var WingPadProps : [][]creative_prop = array{}
 
     OnBegin<override>()<suspends> : void =
@@ -54,25 +56,17 @@ tycoon_manager_device := class(creative_device):
 
     CacheTags() : void =
         set GeneratorPadProps = PropsWithTag(pad_generator)
-        set GeneratorProps = PropsWithTag(generator_prop)
         set WingPadProps = array:
             PropsWithTag(pad_wing_1)
             PropsWithTag(pad_wing_2)
             PropsWithTag(pad_wing_3)
             PropsWithTag(pad_wing_4)
-        set WingProps = array:
-            PropsWithTag(wing_props_1)
-            PropsWithTag(wing_props_2)
-            PropsWithTag(wing_props_3)
-            PropsWithTag(wing_props_4)
 
     HideAll() : void =
-        for (WingPropSet : WingProps):
-            for (WingProp : WingPropSet):
-                WingProp.Hide()
+        for (Manipulator : WingManipulators):
+            Manipulator.HideProps()
+        GeneratorManipulator.HideProps()
         for (Prop : GeneratorPadProps):
-            Prop.Hide()
-        for (Prop : GeneratorProps):
             Prop.Hide()
         for (PadPropSet : WingPadProps):
             for (PadProp : PadPropSet):
@@ -153,11 +147,9 @@ tycoon_manager_device := class(creative_device):
             GeneratorTrigger.Disable()
 
         if (Gen?):
-            for (Prop : GeneratorProps):
-                Prop.Show()
+            GeneratorManipulator.ShowProps()
         else:
-            for (Prop : GeneratorProps):
-                Prop.Hide()
+            GeneratorManipulator.HideProps()
 
         for (Index -> PadProps : WingPadProps):
             if (Billboard := WingBillboards[Index], Trigger := WingTriggers[Index]):
@@ -175,23 +167,24 @@ tycoon_manager_device := class(creative_device):
                     Billboard.HideText()
                     Trigger.Disable()
 
-        for (Index -> PropSet : WingProps):
+        for (Index -> Manipulator : WingManipulators):
             if (Wings > Index):
-                for (Prop : PropSet):
-                    Prop.Show()
+                Manipulator.ShowProps()
             else:
-                for (Prop : PropSet):
-                    Prop.Hide()
+                Manipulator.HideProps()
 
         # Wing 3's guard gates wing 4; wing 4 has no gate of its own to spawn.
-        if (Wings = 2, Guards = 0, SpawnedGuards = 0, Spawner := GuardSpawners[0]):
+        # Each row tests the counter against its OWN index, so a reload that lands past an
+        # earlier guard still spawns this one.
+        if (Wings = 2, Guards = 0, HighestGuardSpawned < 1, Spawner := GuardSpawners[0]):
             Spawner.Enable()
             Spawner.Spawn()
-            set SpawnedGuards += 1
-        if (Wings = 4, Guards = 1, SpawnedGuards = 1, Spawner := GuardSpawners[1]):
+            set HighestGuardSpawned = 1
+        if (Wings = 4, Guards = 1, HighestGuardSpawned < 2, Spawner := GuardSpawners[1]):
             Spawner.Enable()
             Spawner.Spawn()
-            set SpawnedGuards += 1
+            set HighestGuardSpawned = 2
+
 
     RefreshHud() : void =
         if (ActiveHud := Hud?):
@@ -204,6 +197,7 @@ tycoon_manager_device := class(creative_device):
             SaveRunData(ActivePlayer, Gen, Wings, Guards, Gold)
             RefreshWorld()
             RefreshHud()
+            AccoladeMedium.Award(ActivePlayer)
             spawn{ RunIncomeLoop() }
 
     OnWingTriggered(Index : int) : void =

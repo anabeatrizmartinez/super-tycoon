@@ -7,7 +7,7 @@
 
 ## 1. Vision
 
-SuperTycoon is a simple single-player tycoon with a short loop: about two minutes from
+SuperTycoon is a simple single-player tycoon with a short loop: about a minute from
 spawn to ending. The player earns Gold passively, spends it to restore a haunted mansion
 and observatory, and defends the result against a guard when each one is finished.
 
@@ -38,25 +38,29 @@ Four wings and two guards → achievement
 
 ## 3. Economy
 
-Currency is **Fortnite's native Gold**. It lands in the player's inventory and shows in the
-HUD, so the balance is readable without any custom UI.
+Currency is **Gold**, a single number the map owns. Nothing the player carries is a
+balance, so nothing they lose can be one — the counter in §7 is the only place the number
+is read.
 
 | Value | Amount |
 |---|---|
 | Starting Gold | 100 |
 | Generator cost | 100 |
-| Generator output | 20 Gold/second |
+| Generator output | 50 Gold/second |
 | Wing 1 | 200 |
-| Wing 2 | 400 |
-| Wing 3 | 600 |
-| Wing 4 | 800 |
+| Wing 2 | 300 |
+| Wing 3 | 800 |
+| Wing 4 | 1000 |
 
 The starting Gold exactly covers the generator, so the first purchase has one correct
 answer and income starts within seconds of spawning.
 
-Costs rise linearly (+200) rather than exponentially. An exponential curve suits a tycoon
-that runs for hours and needs the late game to stay expensive; over a two-minute run it
-would put the longest wait at the end.
+The curve has two steps, split at the guard: the mansion pair (200, 300) is cheap, the
+observatory pair (800, 1000) is steep. The step from 300 to 800 is paid for by guard 1's
+fight — see the timeline below.
+
+Costs rise linearly. An exponential curve suits a tycoon that runs for hours and needs its
+late game to stay expensive; that is the wrong shape for a one-minute run.
 
 ### Calibrated timeline
 
@@ -65,15 +69,15 @@ spent earning.
 
 | t | Event |
 |---|---|
-| 0:00 | Spawn with 100 Gold; buy the generator |
-| 0:10 | Buy Wing 1 (200) |
-| 0:30 | Buy Wing 2 (400) — mansion complete, **guard 1 spawns** |
-| ~0:45 | Guard 1 cleared (≈300 Gold earned during the fight) |
-| 1:00 | Buy Wing 3 (600) |
-| 1:40 | Buy Wing 4 (800) — observatory complete, **guard 2 spawns** |
-| ~1:55 | Guard 2 cleared → **achievement** |
+| 0:00 | Spawn with 100 Gold; buy the generator (100) |
+| ~0:07 | Buy Wing 1 (200) |
+| ~0:13 | Buy Wing 2 (300) — mansion complete, **guard 1 spawns** |
+| ~0:28 | Guard 1 cleared (≈750 Gold earned during the fight) |
+| ~0:30 | Buy Wing 3 (800) — the fight has already paid for it |
+| ~0:50 | Buy Wing 4 (1000) — observatory complete, **guard 2 spawns** |
+| ~1:05 | Guard 2 cleared → **achievement** |
 
-Roughly **2 minutes** including movement between buttons.
+Roughly **one minute** including movement between pads.
 
 ## 4. Progression and gating
 
@@ -82,7 +86,7 @@ available, so what the player can see is what the player can use.
 
 | Step | Visible buttons | Unlocked by |
 |---|---|---|
-| Start | Generator, Wing 1 | — |
+| Start | Generator | — |
 | After generator | Wing 1 | purchase |
 | After Wing 1 | Wing 2 | purchase |
 | After Wing 2 | *none* | **guard 1 must be cleared** |
@@ -98,15 +102,16 @@ Each wing corresponds to one group of props already present in the map but hidde
 the wing reveals the group. Wings 1–2 restore the haunted mansion; wings 3–4 restore the
 haunted observatory.
 
-The generator is a one-time purchase.
+The generator is a one-time purchase, and it has a group of its own: buying it reveals the
+machine that pays out, giving the income a visible source in the world.
 
 ## 5. Combat
 
 - **One guard per restored building**, two in the run.
-- The guard **attacks the player**. It is tuned to fall in roughly 15 seconds to the starting
-  weapon — long enough to be a fight, short enough not to stall the loop.
-- The player starts with a **single-fire long-range weapon (assault rifle, not burst, not
-  sniper)** and **infinite ammo**. The same weapon carries the whole run.
+- The guard **attacks the player with a DMR**. It is tuned to fall in roughly 15 seconds to
+  the starting weapon — long enough to be a fight, short enough not to stall the loop.
+- The player starts with an **automatic assault rifle** — not burst, not sniper — and
+  **infinite ammo**. The same weapon carries the whole run.
 - **Buildings are indestructible.** The player takes damage; the world does not. Purchases
   survive the fight they triggered.
 - If the guard kills the player, the player **respawns with everything intact** and the guard
@@ -119,10 +124,15 @@ numbers, so Fortnite's own economy scales the reward:
 
 | Event | Weight |
 |---|---|
+| Generator purchased (×1) | Medium |
 | Each wing purchased (×4) | Medium |
 | Each guard cleared (×2) | Medium |
+| Achievement earned (×1) | Very Large |
 
-The generator purchase is the opening step and carries no accolade.
+Every step pays the same Medium weight; only the ending pays more.
+
+Each accolade draws its own on-screen splash from its `Name` and `Description` — both named
+`XP`, described by their weight — confirming the award at the moment it is earned.
 
 **One achievement**, awarded for the real ending: **all four wings bought and both guards
 cleared**. Buying the four wings without clearing the second guard does not complete the
@@ -130,13 +140,17 @@ game.
 
 ## 7. Interface
 
-Three pieces, all of them answering a question the player would otherwise have to guess at.
+Four pieces, all of them answering a question the player would otherwise have to guess at.
 
 ### Gold counter
 
-A persistent readout in a corner of the screen, **updating in real time** as the generator
-pays out. The player is always waiting to afford something, so the number they are waiting
-on is on screen at all times rather than in a menu.
+A persistent readout **updating in real time** as the generator pays out. The player is
+always waiting to afford something, so the number they are waiting on stays on screen at
+all times.
+
+It sits against the **left edge at mid-height**, as a coin icon and the number on a filled
+badge. The corners of a Fortnite screen already belong to the game's own readouts, so
+mid-height is where the badge stays legible over whatever the player is walking past.
 
 ### Pad labels
 
@@ -155,37 +169,54 @@ The label shows the cost alongside the name, so "can I afford this yet" is answe
 looking at the pad and the counter together. A locked pad shows nothing — it is not there
 to be read.
 
-*(Labels should match what each prop group actually contains; adjust once the groups are
-confirmed in the editor.)*
-
 ### Achievements readout
 
 The HUD shows the achievement permanently, in both states, so the player can see it before
-earning it:
+earning it. It mirrors the Gold counter — a filled badge against the **right edge at
+mid-height**, carrying an icon, the achievement's name, its condition, and its state:
 
-| State | Shown as |
+| Field | Text |
 |---|---|
-| Not earned | Name, its condition, marked locked |
-| Earned | Name, marked earned |
+| Name | Lord of the Manor |
+| Condition | Restore the Manor and clear the guards. |
+| State | `LOCKED` until `Wings = 4` and `Guards = 2`, then `EARNED` |
 
 Showing a single locked achievement is the point — it tells the player what finishing the
 map means, which nothing else in the map states.
 
-**It is a fixed row, not a button that opens a panel.** In Fortnite a UI control the player
-can click has to hold the same input that moves and aims the character, so a button sitting
-on screen for the whole match is movement taken away for the whole match. The row is small,
-costs one corner, and states the goal without ever being opened.
+**It is a fixed badge, never a button.** In Fortnite a clickable UI control holds the same
+input that moves and aims the character, so a button sitting on screen for the whole match
+is movement taken away for the whole match. The badge is small, costs one edge, and states
+the goal without ever being opened.
+
+### Status messages
+
+Two moments get a short line across the screen, and they are the only ones: **guard
+defeated** and **achievement unlocked**. Each marks an instant, not an ongoing state — the
+two badges already carry the continuous state.
+
+XP has a surface of its own — the accolade splash of §6, which confirms the award where it
+happens. Keeping it off this one leaves a player who is usually mid-fight with a single line
+to read.
 
 ## 8. Persistence
 
-Two things survive the player leaving: **how many wings they have bought** and **how much
-Gold is in their pocket**. On return, the map rebuilds to that point and play continues.
-The achievement's earned state travels with them too.
+Four things survive the player leaving: **whether they own the generator**, **how many
+wings they have bought**, **how many guards they have cleared**, and **how much Gold they
+have**. On return, the map rebuilds to that point and play continues. The achievement's
+earned state travels with them too — it is read off the wings and the guards, so it cannot
+disagree with them.
 
-Guard state is intentionally left out of the save: a returning player gets a clean
-re-entry, and a guard that was left alive respawns with its building.
+What is *not* saved is whether a guard is currently alive. A returning player gets a clean
+re-entry: a guard that was left standing is spawned again with its building, and one that
+was already cleared stays cleared.
 
 ## 9. Scope
 
-The map is single-player, and the world is fixed — the player spends Gold on the four wings
-rather than placing or editing structures themselves.
+The map is single-player, and the world is fixed — the player spends Gold on the four
+wings; nothing is placed or edited. Building is off and the build menu is hidden, so the
+only way to add anything to the map is a pad. A barrier closes the play area at its edge.
+
+The map runs at a **fixed hour**, not a day/night cycle: the mansion and the observatory
+are lit the same way at 0:10 and at 1:55. A **fade** opens the run, covering the moment the
+map is being hidden and shown for the first time.
