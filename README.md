@@ -9,6 +9,10 @@ curve, combat, XP rewards, an achievement, and a save that survives closing the 
 
 ---
 
+[![Watch the gameplay video](https://img.youtube.com/vi/nmKcBm_ND_k/maxresdefault.jpg)](https://youtu.be/nmKcBm_ND_k)
+
+---
+
 ## Core loop
 
 ```
